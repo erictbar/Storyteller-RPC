@@ -1,3 +1,7 @@
+Based on [audiobookshelf-discord-rpc by 0xGingi](https://github.com/0xGingi/audiobookshelf-discord-rpc)
+
+New README to come
+
 # audiobookshelf-discord-rpc
 Displays what you're listening to on audiobookshelf on discord!
 
