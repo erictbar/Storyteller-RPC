@@ -1,83 +1,72 @@
-Based on [audiobookshelf-discord-rpc by 0xGingi](https://github.com/0xGingi/audiobookshelf-discord-rpc)
+# Storyteller Discord RPC
 
-New README to come
+Displays what you're reading or listening to on your Storyteller server as Discord Rich Presence!
 
-# audiobookshelf-discord-rpc
-Displays what you're listening to on audiobookshelf on discord!
+## Features
+- Shows the current book you are reading or listening to
+- Supports both playing and paused states
+- Hides books from Discord based on keywords in the title (privacy feature)
+- Automatically uploads cover art to Imgur (optional)
+- Authenticates with your Storyteller server using username and password
+- Works on Windows, Linux, Mac, and Docker
 
-Shows Book Name, Author, Duration, Genres or Chapter, and Cover Art
+---
 
-* Note: This will display what you're listening to on any device but you must run this program on a computer with discord installed!
+![Storyteller Discord Rich Presence Example](docs/static/img/storyteller-discord-rpc-demo.png)
 
-* The Installer now has an update feature, just press u and let it do its thing!
+*Replace this image with a screenshot of your Discord Rich Presence showing a Storyteller book, or use a combined Storyteller + Discord logo.*
 
-![image](https://github.com/user-attachments/assets/2354b157-3b54-4b4b-8ab3-fa7d7f64fa56)
+---
 
+## Configuration
 
-## Run
+Create a `config.json` file (see `config/config.json.example` for all options):
+
+```json
+{
+  "discord_client_id": "YOUR_DISCORD_CLIENT_ID",
+  "storyteller_url": "http://localhost:3000",
+  "storyteller_username": "your_username",
+  "storyteller_password": "your_password",
+  "show_progress": true,
+  "use_storyteller_cover": true,
+  "imgur_client_id": "YOUR_IMGUR_CLIENT_ID", // optional
+  "exclude_keywords": ["private", "secret"] // books with these words in the title will not be shown
+}
+```
+
+## Installation & Usage
 
 ### Windows
-* [Download the installer](https://github.com/0xGingi/audiobookshelf-discord-rpc/releases/download/installer-v1.4.2/audiobookshelf-discord-rpc-installer.exe)
-* **Run the installer as admin to have the autostart service** 
-* Generate your config file
-* Create the startup task
-* audiobookshelf-discord-rpc should now be started and will run on boot
-* Files are located at %localappdata%/AudiobookshelfDiscordRPC & Service is created with Task Scheduler
+~~- Download and run the installer (admin for autostart)~~ **Not Yet Implimented**
+- Build (see below)
+- Edit your config file
+- The service will ~~run on boot and~~ update your Discord status
 
-### Linux
-* [Download the installer](https://github.com/0xGingi/audiobookshelf-discord-rpc/releases/download/installer-v1.4.2/audiobookshelf-discord-rpc-installer)
-```
-./audiobookshelf-discord-rpc-installer
-```
-* Generate your config file
-* Create the systemd service (runs as user)
-* audiobookshelf-discord-rpc should now be started and will run on boot
-* Executable and config.json are located at ~/.local/bin/ & systemd service is located at ~/.config/systemd/user/audiobookshelf-discord-rpc.service
+### Linux / MacOS
+- Build from source
+- Edit your config file
+- Set up a systemd/user service or launch manually
+- Example launchd/user service for macOS is `com.storyteller.discord-rpc.plist`
 
-### MacOS (Arm64 Only)
-* [Download the installer](https://github.com/0xGingi/audiobookshelf-discord-rpc/releases/download/installer-v1.4.2/audiobookshelf-discord-rpc-installer-macos-arm64)
-```
-./audiobookshelf-discord-rpc-installer
-```
-* Generate your config file
-* Create the service
-* audiobookshelf-discord-rpc should now be started and will run on boot
-* Executable and config.json are located at ~/.local/bin/
+### Docker **NOT YET IMPLIMENTED*
+~~- Clone the repo
+- Edit your config file
+- Run with `docker compose up -d`~~
 
+## Building from Source
 
-### Docker (Linux Only - Requires Discord Installed on system - WSL2 May Work on Windows if Discord is installed in WSL)
-* Clone the repo
 ```
-git clone https://github.com/0xgingi/audiobookshelf-discord-rpc
-cd audiobookshelf-discord-rpc
-```
-* Create a config.json file
-```
-cp config/config.json.example config/config.json
-```
-* Edit the config.json file
-* Run the docker container
-```
-docker compose up -d
-```
-
-## Get API Key (Must Be Admin)
-![abs-api-1](https://github.com/user-attachments/assets/57a0c95d-acfc-447e-aa6a-fc8651ddca24)
-![abs-api-2](https://github.com/user-attachments/assets/b712957b-3402-469c-a85c-8f283ccc8c08)
-![abs-api-3](https://github.com/user-attachments/assets/edf71490-a695-443e-b25f-98923107f70b)
-
-
-
-## Build
-```
-git clone https://github.com/0xgingi/audiobookshelf-discord-rpc
-cd audiobookshelf-discord-rpc
+git clone https://github.com/erictbar/Storyteller-RPC
+cd Storyteller-RPC/storyteller-rpc
 cargo build --release
 ```
-### Build Installer
-```
-git clone https://github.com/0xgingi/audiobookshelf-discord-rpc
-cd audiobookshelf-discord-rpc/installer
-cargo build --release
-```
+
+## Privacy
+- No data is sent anywhere except to Discord and (optionally) Imgur for cover art
+- Use `exclude_keywords` to keep certain books private
+
+## Credits
+- Based on [audiobookshelf-discord-rpc by 0xGingi](https://github.com/0xGingi/audiobookshelf-discord-rpc)
+- Storyteller: https://storyteller-platform.gitlab.io/storyteller/
 
