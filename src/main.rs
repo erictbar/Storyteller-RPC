@@ -47,13 +47,23 @@ struct BookDetail {
     id: i64,
     title: String,
     authors: Vec<BookAuthor>,
-    processing_status: Option<ProcessingStatus>,
+    #[serde(rename = "processingStatus")]
+    processing_status: Option<ProcessingStatusObject>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessingStatusObject {
+    #[serde(rename = "currentTask")]
+    current_task: String,
+    progress: f64,
+    status: ProcessingStatus,
 }
 
 #[derive(Debug, Deserialize)]
 struct BookAuthor {
     name: String,
-    file_as: String,
+    #[serde(rename = "fileAs")]
+    file_as: Option<String>,
     role: Option<String>,
 }
 
@@ -62,8 +72,11 @@ struct BookAuthor {
 enum ProcessingStatus {
     Uploaded,
     Processing,
+    #[serde(rename = "COMPLETED")]
     Completed,
     Failed,
+    #[serde(rename = "currentTask")]
+    CurrentTask,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -99,6 +112,12 @@ struct ImgurResponse {
 #[derive(Debug, Deserialize)]
 struct ImgurData {
     link: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BookPosition {
+    timestamp: u64,
+    locator: serde_json::Value, // We don't need to parse the full locator structure
 }
 
 #[tokio::main]
@@ -249,50 +268,126 @@ async fn set_activity(
     current_book: &mut Option<Book>,
     timing_info: &mut TimingInfo,
     imgur_cache: &mut HashMap<String, String>,
-) -> Result<(), Box<dyn std::error::Error>> {
-
-    // Get all books from Storyteller
-    let books_url = format!("{}/books", config.storyteller_url);
+) -> Result<(), Box<dyn std::error::Error>> {    // Get all books from Storyteller - try /api/books first, then /books
+    let books_endpoints = [
+        format!("{}/api/books", config.storyteller_url),
+        format!("{}/books", config.storyteller_url),
+    ];
     
-    let resp: Vec<BookDetail> = client
-        .get(&books_url)
-        .bearer_auth(access_token)
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    if resp.is_empty() {
+    let mut resp: Option<Vec<BookDetail>> = None;
+    for books_url in &books_endpoints {
+        let response = client
+            .get(books_url)
+            .bearer_auth(access_token)
+            .send()
+            .await?;        if response.status().is_success() {
+            resp = Some(response.json().await?);
+            break;
+        }
+        
+        // If we get a 404, try the next endpoint
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            continue;
+        }
+        
+        // For other errors (like auth errors), return them immediately
+        return Err(format!("Failed to fetch books with status: {}", response.status()).into());
+    }
+    
+    let resp = resp.ok_or("No working books endpoint found")?;    if resp.is_empty() {
         info!("No books found in Storyteller library");
         discord.clear_activity()?;
         return Ok(());
     }
 
-    // Find the most recently completed book for now
-    // In a real implementation, you'd want to track user reading state
-    let latest_book = resp.iter()
-        .filter(|book| book.processing_status == Some(ProcessingStatus::Completed))
-        .last();
-
-    if latest_book.is_none() {
-        info!("No completed books found");
-        discord.clear_activity()?;
-        return Ok(());
+    // Find the book with the most recent reading activity by checking position timestamps
+    let mut most_recent_book: Option<(&BookDetail, u64)> = None;
+    
+    for book in &resp {
+        // Only check completed/synced books
+        if let Some(ref status_obj) = book.processing_status {
+            if status_obj.status != ProcessingStatus::Completed {
+                continue;
+            }
+        } else {
+            continue;
+        }
+        
+        // Try to get the position for this book to check recent activity
+        let position_endpoints = [
+            format!("{}/api/books/{}/positions", config.storyteller_url, book.id),
+            format!("{}/books/{}/positions", config.storyteller_url, book.id),
+        ];
+        
+        for position_url in &position_endpoints {
+            match client
+                .get(position_url)
+                .bearer_auth(access_token)
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    if response.status().is_success() {
+                        if let Ok(position) = response.json::<BookPosition>().await {
+                            // Check if this book has more recent activity
+                            if most_recent_book.as_ref().map_or(true, |(_, timestamp)| position.timestamp > *timestamp) {
+                                most_recent_book = Some((book, position.timestamp));
+                            }
+                            break; // Successfully got position, move to next book
+                        }
+                    } else if response.status() == reqwest::StatusCode::NOT_FOUND {
+                        // No position found for this book, but that's ok - try next endpoint
+                        continue;
+                    }
+                }
+                Err(_) => {
+                    // Error getting position, try next endpoint
+                    continue;
+                }
+            }
+        }
     }
 
-    let book = latest_book.unwrap();
+    // If no book has position data, fall back to the most recently completed book
+    let book = if let Some((book, timestamp)) = most_recent_book {
+        info!("Found most recently active book: {} (last activity: {})", book.title, timestamp);
+        book
+    } else {
+        // Fallback to most recently completed book
+        let latest_book = resp.iter()
+            .filter(|book| {
+                if let Some(ref status_obj) = book.processing_status {
+                    status_obj.status == ProcessingStatus::Completed
+                } else {
+                    false
+                }
+            })
+            .last();
+
+        if latest_book.is_none() {
+            info!("No completed books found");
+            discord.clear_activity()?;
+            return Ok(());
+        }
+        
+        latest_book.unwrap()
+    };
     let authors: Vec<String> = book.authors.iter().map(|a| a.name.clone()).collect();
     let author_text = if authors.is_empty() {
         "Unknown Author".to_string()
     } else {
         authors.join(", ")
-    };
-
-    let book_name = &book.title;
+    };    let book_name = &book.title;
     
-    // Check if we're "reading" this book
+    // Check if we're "reading" this book based on recent position activity
     let now = SystemTime::now();
-    let is_reading = should_show_as_reading(&now, playback_state);
+    let is_reading = if let Some((_, timestamp)) = most_recent_book {
+        // If we found position data, use that to determine if currently reading
+        should_show_as_reading_with_timestamp(&now, timestamp)
+    } else {
+        // Fallback to the original heuristic
+        should_show_as_reading(&now, playback_state)
+    };
 
     if current_book.as_ref().map_or(true, |b| b.id != book.id) {
         *current_book = Some(Book {
@@ -350,19 +445,34 @@ async fn authenticate_storyteller(
         password: config.storyteller_password.clone(),
     };
 
-    let token_url = format!("{}/token", config.storyteller_url);
+    // Try /api/token first (v0.2+), then fall back to /token (v0.1)
+    let endpoints = [
+        format!("{}/api/token", config.storyteller_url),
+        format!("{}/token", config.storyteller_url),
+    ];
     
-    let resp = client
-        .post(&token_url)
-        .form(&login_request)
-        .send()
-        .await?;
+    for token_url in &endpoints {
+        let resp = client
+            .post(token_url)
+            .form(&login_request)
+            .send()
+            .await?;
 
-    if !resp.status().is_success() {
+        if resp.status().is_success() {
+            let login_response: LoginResponse = resp.json().await?;
+            return Ok(login_response.access_token);
+        }
+        
+        // If we get a 404, try the next endpoint
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            continue;
+        }
+        
+        // For other errors, return them immediately
         return Err(format!("Authentication failed with status: {}", resp.status()).into());
     }
-
-    let login_response: LoginResponse = resp.json().await?;    Ok(login_response.access_token)
+    
+    Err("Authentication failed: no working token endpoint found".into())
 }
 
 fn should_show_as_reading(now: &SystemTime, playback_state: &PlaybackState) -> bool {
@@ -370,6 +480,20 @@ fn should_show_as_reading(now: &SystemTime, playback_state: &PlaybackState) -> b
     // In a real implementation, you'd track actual reading state from the mobile app or web interface
     if let Ok(elapsed) = now.duration_since(playback_state.last_api_time) {
         elapsed.as_secs() < 1800 // 30 minutes
+    } else {
+        false
+    }
+}
+
+fn should_show_as_reading_with_timestamp(now: &SystemTime, position_timestamp: u64) -> bool {
+    // Show as reading if the last position update was within the last 10 minutes
+    if let Ok(now_timestamp) = now.duration_since(SystemTime::UNIX_EPOCH) {
+        let now_ms = now_timestamp.as_millis() as u64;
+        let time_since_activity_ms = now_ms.saturating_sub(position_timestamp);
+        let time_since_activity_secs = time_since_activity_ms / 1000;
+        
+        // Consider "reading" if activity within last 10 minutes (600 seconds)
+        time_since_activity_secs < 600
     } else {
         false
     }
@@ -389,25 +513,38 @@ async fn get_storyteller_cover_path(
             // Check cache first
             if let Some(cached_url) = imgur_cache.get(&cache_key) {
                 return Ok(Some(cached_url.clone()));
-            }
+            }            // Get cover from Storyteller server - try /api/books/{id}/cover first, then /books/{id}/cover
+            let cover_endpoints = [
+                format!("{}/api/books/{}/cover", config.storyteller_url, book_id),
+                format!("{}/books/{}/cover", config.storyteller_url, book_id),
+            ];
+              for cover_url in &cover_endpoints {
+                let response = client
+                    .get(cover_url)
+                    .bearer_auth(access_token)
+                    .send()
+                    .await;
 
-            // Get cover from Storyteller server
-            let cover_url = format!("{}/books/{}/cover", config.storyteller_url, book_id);
-              let response = client
-                .get(&cover_url)
-                .bearer_auth(access_token)
-                .send()
-                .await;
-
-            if let Ok(resp) = response {
-                if resp.status().is_success() {
-                    let cover_bytes = resp.bytes().await?;
+                if let Ok(resp) = response {
+                    let status = resp.status();
                     
-                    // Upload to Imgur
-                    if let Ok(imgur_url) = upload_to_imgur(client, imgur_client_id, &cover_bytes).await {
-                        imgur_cache.insert(cache_key, imgur_url.clone());
-                        return Ok(Some(imgur_url));
+                    if status.is_success() {
+                        let cover_bytes = resp.bytes().await?;
+                        
+                        // Upload to Imgur
+                        if let Ok(imgur_url) = upload_to_imgur(client, imgur_client_id, &cover_bytes).await {
+                            imgur_cache.insert(cache_key, imgur_url.clone());
+                            return Ok(Some(imgur_url));
+                        }
                     }
+                    
+                    // If we get a 404, try the next endpoint
+                    if status == reqwest::StatusCode::NOT_FOUND {
+                        continue;
+                    }
+                    
+                    // For other errors, break and continue with fallback
+                    break;
                 }
             }
         }
