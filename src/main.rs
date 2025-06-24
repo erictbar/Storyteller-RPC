@@ -347,29 +347,23 @@ async fn set_activity(
                 }
             }
         }
-    }    // If no book has position data, fall back to the most recently completed book
+    }    // Check if we have recent activity, or clear Discord status
     let book = if let Some((book, timestamp)) = most_recent_book {
-        info!("Found most recently active book: {} (last activity: {})", book.title, timestamp);
-        book
-    } else {
-        // Fallback to most recently completed book
-        let latest_book = resp.iter()
-            .filter(|book| {
-                if let Some(ref status_obj) = book.processing_status {
-                    status_obj.status == ProcessingStatus::Completed
-                } else {
-                    false
-                }
-            })
-            .last();
-
-        if latest_book.is_none() {
-            info!("No completed books found");
+        // Check if the activity is recent enough
+        let now = SystemTime::now();
+        if should_show_as_reading_with_timestamp(&now, timestamp) {
+            info!("Found most recently active book: {} (last activity: {})", book.title, timestamp);
+            book
+        } else {
+            info!("Most recent book activity is too old (timestamp: {}), clearing Discord status", timestamp);
             discord.clear_activity()?;
             return Ok(());
         }
-        
-        latest_book.unwrap()
+    } else {
+        // No position data found for any book, clear Discord status
+        info!("No position data found for any completed books, clearing Discord status");
+        discord.clear_activity()?;
+        return Ok(());
     };
 
     // Check if this book should be excluded based on keywords
@@ -388,22 +382,8 @@ async fn set_activity(
     } else {
         authors.join(", ")
     };    let book_name = &book.title;
-      // Check if we're "reading" this book based on recent position activity
-    let now = SystemTime::now();
-    let is_reading = if let Some((_, timestamp)) = most_recent_book {
-        // If we found position data, use that to determine if currently reading
-        should_show_as_reading_with_timestamp(&now, timestamp)
-    } else {
-        // Fallback to the original heuristic
-        should_show_as_reading(&now, playback_state)
-    };
 
-    // If no recent activity (within 2 minutes), clear the Discord activity
-    if !is_reading {
-        info!("No recent reading activity found, clearing Discord status");
-        discord.clear_activity()?;
-        return Ok(());
-    }
+    // At this point, we know we have recent activity, so we can proceed with setting Discord status
 
     if current_book.as_ref().map_or(true, |b| b.id != book.id) {
         *current_book = Some(Book {
