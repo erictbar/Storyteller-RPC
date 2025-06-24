@@ -43,7 +43,7 @@ Create a `config.json` file (see `config/config.json.example` for all options):
 - Edit your config file
 - The service will ~~run on boot and~~ update your Discord status
 
-### Linux / MacOS
+### Linux / macOS
 - Build from source
 - Edit your config file
 - Set up a systemd/user service or launch manually
