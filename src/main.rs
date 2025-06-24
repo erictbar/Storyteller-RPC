@@ -475,14 +475,14 @@ fn should_show_as_reading(now: &SystemTime, playback_state: &PlaybackState) -> b
 }
 
 fn should_show_as_reading_with_timestamp(now: &SystemTime, position_timestamp: u64) -> bool {
-    // Show as reading if the last position update was within the last 2 minutes
+    // Show as reading if the last position update was within the last 5 minutes
     if let Ok(now_timestamp) = now.duration_since(SystemTime::UNIX_EPOCH) {
         let now_ms = now_timestamp.as_millis() as u64;
         let time_since_activity_ms = now_ms.saturating_sub(position_timestamp);
         let time_since_activity_secs = time_since_activity_ms / 1000;
         
-        // Consider "reading" if activity within last 2 minutes (120 seconds)
-        time_since_activity_secs < 120
+        // Consider "reading" if activity within last 5 minutes (300 seconds)
+        time_since_activity_secs < 300
     } else {
         false
     }
