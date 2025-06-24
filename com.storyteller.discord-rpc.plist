@@ -7,7 +7,7 @@
     
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/Eric/Developer/Storyteller-RPC/target/release/audiobookshelf-discord-rpc</string>
+        <string>/Users/Eric/Developer/Storyteller-RPC/target/release/storyteller-discord-rpc</string>
         <string>-c</string>
         <string>/Users/Eric/Developer/Storyteller-RPC/target/release/config.json</string>
     </array>
