@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.audiobookshelf.discord-rpc</string>
+    <string>com.storyteller.discord-rpc</string>
     
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/Eric/Developer/audiobookshelf-discord-rpc/target/release/audiobookshelf-discord-rpc</string>
+        <string>/Users/Eric/Developer/Storyteller-RPC/target/release/audiobookshelf-discord-rpc</string>
         <string>-c</string>
-        <string>/Users/Eric/Developer/audiobookshelf-discord-rpc/config.json</string>
+        <string>/Users/Eric/Developer/Storyteller-RPC/target/release/config.json</string>
     </array>
     
     <key>RunAtLoad</key>
@@ -19,13 +19,13 @@
     <true/>
     
     <key>StandardOutPath</key>
-    <string>/Users/Eric/Library/Logs/audiobookshelf-discord-rpc.log</string>
+    <string>/Users/Eric/Library/Logs/storyteller-discord-rpc.log</string>
     
     <key>StandardErrorPath</key>
-    <string>/Users/Eric/Library/Logs/audiobookshelf-discord-rpc-error.log</string>
+    <string>/Users/Eric/Library/Logs/storyteller-discord-rpc-error.log</string>
     
     <key>WorkingDirectory</key>
-    <string>/Users/Eric/Developer/audiobookshelf-discord-rpc</string>
+    <string>/Users/Eric/Developer/Storyteller-RPC</string>
     
     <key>EnvironmentVariables</key>
     <dict>
