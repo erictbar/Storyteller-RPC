@@ -107,15 +107,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = Client::new();
 
-    if let Some(latest_version) = check_for_update(&client).await? {
-        info!(
-            "A new version is available: {}. You're currently running version {}.",
-            latest_version, CURRENT_VERSION
-        );
-        info!("Please re-run the installer or visit https://github.com/0xGingi/audiobookshelf-discord-rpc/releases to download the latest version.");
-    } else {
-        info!("You're running the latest version: {}", CURRENT_VERSION);
-    }
+    // Update check disabled: no releases page yet
+    // if let Some(latest_version) = check_for_update(&client).await? {
+    //     info!(
+    //         "A new version is available: {}. You're currently running version {}.",
+    //         latest_version, CURRENT_VERSION
+    //     );
+    //     info!("Please re-run the installer or visit https://github.com/erictbar/Storyteller-RPC to download the latest version.");
+    // } else {
+    //     info!("You're running the latest version: {}", CURRENT_VERSION);
+    // }
 
     let config_file = parse_args()?;
     info!("Using config file: {}", config_file);
@@ -451,8 +452,10 @@ async fn upload_to_imgur(
     Ok(imgur_response.data.link)
 }
 
+// Comment out the check_for_update function since it's not used
+/*
 async fn check_for_update(client: &Client) -> Result<Option<String>, Box<dyn std::error::Error>> {
-    let url = "https://api.github.com/repos/0xGingi/storyteller-discord-rpc/releases/latest";
+    let url = "https://github.com/erictbar/Storyteller-RPC";
     let resp = client
         .get(url)
         .header("User-Agent", "Storyteller-Discord-RPC")
@@ -472,3 +475,4 @@ async fn check_for_update(client: &Client) -> Result<Option<String>, Box<dyn std
         Ok(None)
     }
 }
+*/
