@@ -388,8 +388,7 @@ async fn set_activity(
     } else {
         authors.join(", ")
     };    let book_name = &book.title;
-    
-    // Check if we're "reading" this book based on recent position activity
+      // Check if we're "reading" this book based on recent position activity
     let now = SystemTime::now();
     let is_reading = if let Some((_, timestamp)) = most_recent_book {
         // If we found position data, use that to determine if currently reading
@@ -398,6 +397,13 @@ async fn set_activity(
         // Fallback to the original heuristic
         should_show_as_reading(&now, playback_state)
     };
+
+    // If no recent activity (within 2 minutes), clear the Discord activity
+    if !is_reading {
+        info!("No recent reading activity found, clearing Discord status");
+        discord.clear_activity()?;
+        return Ok(());
+    }
 
     if current_book.as_ref().map_or(true, |b| b.id != book.id) {
         *current_book = Some(Book {
@@ -409,23 +415,16 @@ async fn set_activity(
             last_api_time: SystemTime::now(),
             is_reading: false,
         };
-    }
-
-    let large_text = if config.show_progress.unwrap_or(false) {
+    }    let large_text = if config.show_progress.unwrap_or(false) {
         "Reading"
     } else {
         "Storyteller"
-    };    let activity_builder = if is_reading {
-        activity::Activity::new()
-            .details(book_name)
-            .state(&author_text)
-            .activity_type(activity::ActivityType::Playing)
-    } else {
-        activity::Activity::new()
-            .details(book_name)
-            .state(&author_text)
-            .activity_type(activity::ActivityType::Playing)
     };
+
+    let activity_builder = activity::Activity::new()
+        .details(book_name)
+        .state(&author_text)
+        .activity_type(activity::ActivityType::Playing);
 
     let cover_url = get_storyteller_cover_path(client, config, access_token, book.id, imgur_cache).await?;
 
@@ -496,14 +495,14 @@ fn should_show_as_reading(now: &SystemTime, playback_state: &PlaybackState) -> b
 }
 
 fn should_show_as_reading_with_timestamp(now: &SystemTime, position_timestamp: u64) -> bool {
-    // Show as reading if the last position update was within the last 10 minutes
+    // Show as reading if the last position update was within the last 2 minutes
     if let Ok(now_timestamp) = now.duration_since(SystemTime::UNIX_EPOCH) {
         let now_ms = now_timestamp.as_millis() as u64;
         let time_since_activity_ms = now_ms.saturating_sub(position_timestamp);
         let time_since_activity_secs = time_since_activity_ms / 1000;
         
-        // Consider "reading" if activity within last 10 minutes (600 seconds)
-        time_since_activity_secs < 600
+        // Consider "reading" if activity within last 2 minutes (120 seconds)
+        time_since_activity_secs < 120
     } else {
         false
     }
