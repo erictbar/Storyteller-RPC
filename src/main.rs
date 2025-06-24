@@ -22,6 +22,7 @@ struct Config {
     show_progress: Option<bool>,
     use_storyteller_cover: Option<bool>,
     imgur_client_id: Option<String>,
+    exclude_keywords: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -346,9 +347,7 @@ async fn set_activity(
                 }
             }
         }
-    }
-
-    // If no book has position data, fall back to the most recently completed book
+    }    // If no book has position data, fall back to the most recently completed book
     let book = if let Some((book, timestamp)) = most_recent_book {
         info!("Found most recently active book: {} (last activity: {})", book.title, timestamp);
         book
@@ -372,6 +371,17 @@ async fn set_activity(
         
         latest_book.unwrap()
     };
+
+    // Check if this book should be excluded based on keywords
+    if let Some(ref exclude_keywords) = config.exclude_keywords {
+        for keyword in exclude_keywords {
+            if book.title.to_lowercase().contains(&keyword.to_lowercase()) {
+                info!("Book '{}' contains excluded keyword '{}', skipping Discord RPC", book.title, keyword);
+                discord.clear_activity()?;
+                return Ok(());
+            }
+        }
+    }
     let authors: Vec<String> = book.authors.iter().map(|a| a.name.clone()).collect();
     let author_text = if authors.is_empty() {
         "Unknown Author".to_string()
