@@ -76,6 +76,8 @@ enum ProcessingStatus {
     #[serde(rename = "COMPLETED")]
     Completed,
     Failed,
+    #[serde(rename = "IN_ERROR")]
+    InError,
     #[serde(rename = "currentTask")]
     CurrentTask,
 }
