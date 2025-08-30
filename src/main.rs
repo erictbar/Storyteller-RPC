@@ -283,7 +283,9 @@ async fn set_activity(
             .get(books_url)
             .bearer_auth(access_token)
             .send()
-            .await?;        if response.status().is_success() {
+            .await?;        
+
+        if response.status().is_success() {
             resp = Some(response.json().await?);
             break;
         }
@@ -297,7 +299,9 @@ async fn set_activity(
         return Err(format!("Failed to fetch books with status: {}", response.status()).into());
     }
     
-    let resp = resp.ok_or("No working books endpoint found")?;    if resp.is_empty() {
+    let resp = resp.ok_or("No working books endpoint found")?;
+
+    if resp.is_empty() {
         info!("No books found in Storyteller library");
         discord.clear_activity()?;
         return Ok(());
@@ -307,15 +311,6 @@ async fn set_activity(
     let mut most_recent_book: Option<(&BookDetail, u64)> = None;
     
     for book in &resp {
-        // Only check completed/synced books
-        if let Some(ref status_obj) = book.processing_status {
-            if status_obj.status != ProcessingStatus::Completed {
-                continue;
-            }
-        } else {
-            continue;
-        }
-        
         // Try to get the position for this book to check recent activity
         let position_endpoints = [
             format!("{}/api/books/{}/positions", config.storyteller_url, book.id),
@@ -363,7 +358,7 @@ async fn set_activity(
         }
     } else {
         // No position data found for any book, clear Discord status
-        info!("No position data found for any completed books, clearing Discord status");
+        info!("No position data found for any books, clearing Discord status");
         discord.clear_activity()?;
         return Ok(());
     };
